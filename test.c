@@ -6,29 +6,34 @@
 #include <stdio.h>
 #include <string.h>
 
-int hello_getattr(const char *path, struct stat *statbuf) {
-  printf("getattr called for %s\n", path);
+void statbuf_for_path(const char *path, struct stat *statbuf) {
+  if (strcmp(path, "/") == 0 || strcmp(path, "/test") == 0 ||
+      strcmp(path, "/test2") == 0) {
+    statbuf->st_mode = S_IFDIR | 0755;
+  } else {
+    statbuf->st_mode = S_IFREG | 0644;
+  }
+}
 
+int hello_getattr(const char *path, struct stat *statbuf) {
   memset(statbuf, 0, sizeof(struct stat));
-  statbuf->st_mode = S_IFDIR | 0755;
+  statbuf_for_path(path, statbuf);
 
   return 0;
 }
 
 int hello_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-                  off_t offset, struct fuse_file_info *fi) {
+                  off_t offset, struct fuse_file_info *info) {
+  (void)info;
   (void)offset;
-  (void)fi;
 
-  struct stat file_statbuf;
-  file_statbuf.st_mode = S_IFREG | 0644;
-
-  struct stat dir_statbuf;
-  dir_statbuf.st_mode = S_IFDIR | 0755;
-
-  filler(buf, "test", &dir_statbuf, 0);
-  filler(buf, "test2", &dir_statbuf, 0);
-  filler(buf, "test3", &file_statbuf, 0);
+  struct stat statbuf;
+  statbuf_for_path("/test", &statbuf);
+  filler(buf, "test", &statbuf, 0);
+  statbuf_for_path("/test2", &statbuf);
+  filler(buf, "test2", &statbuf, 0);
+  statbuf_for_path("/test3", &statbuf);
+  filler(buf, "test3", &statbuf, 0);
 
   return 0;
 }
