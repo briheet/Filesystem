@@ -30,5 +30,3 @@ If the commands are not working, consider the following:
 ```bash
   fuse --version
 ```
-
-- With these corrections, the markdown should render properly and provide clear instructions.
