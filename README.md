@@ -28,5 +28,17 @@ If the commands are not working, consider the following:
 - **Check if FUSE is installed**: Ensure that FUSE is installed on your system. You can check this by running:
 
 ```bash
-  fuse --version
+ fuse --version
+```
+
+- To Run the database for now
+
+```bash
+cargo run -- test_db
+```
+
+- To Check the files are created or not first install sqlitebrowser or any other tool
+
+```bash
+sqlitebrowser test_db/metadata.db
 ```
