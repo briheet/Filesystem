@@ -1,9 +1,17 @@
+use crate::db::Db;
 use core::panic;
-use std::{ffi::CString, i8, mem::MaybeUninit};
-
+use std::{
+    ffi::{c_void, CString},
+    i8,
+    mem::MaybeUninit,
+};
 mod sys;
 
 const HELLO_OPER: sys::fuse_operations = generate_fuse_ops();
+
+struct FuseClient {
+    db: Db,
+}
 
 const fn generate_fuse_ops() -> sys::fuse_operations {
     unsafe {
@@ -12,7 +20,8 @@ const fn generate_fuse_ops() -> sys::fuse_operations {
     }
 }
 
-pub fn run_fuse_client() {
+pub fn run_fuse_client(db: Db) {
+    let mut client = FuseClient { db };
     // argc and argv need compatible string hence we use CString
     let args: Vec<CString> = std::env::args().map(|s| CString::new(s).unwrap()).collect();
 
@@ -35,7 +44,7 @@ pub fn run_fuse_client() {
             args.argv,
             &HELLO_OPER,
             std::mem::size_of_val(&HELLO_OPER),
-            std::ptr::null_mut(),
+            &mut client as *mut FuseClient as *mut c_void,
         );
     }
 }

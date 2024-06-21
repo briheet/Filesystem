@@ -4,9 +4,7 @@ mod fuse;
 
 fn main() {
     let db_path = "test_db";
-    let mut db = Db::new(db_path.into());
-    db.create_item("test").unwrap();
-    db.create_item("test2").unwrap();
+    let db = Db::new(db_path.into());
 
-    fuse::run_fuse_client();
+    fuse::run_fuse_client(db);
 }
