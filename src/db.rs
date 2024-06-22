@@ -19,7 +19,7 @@ pub struct Db {
 pub struct DbItem {
     // Our Db item is gonna have path to the item and his name
     path: PathBuf,
-    name: String,
+    pub name: String,
 }
 
 impl Db {
@@ -63,7 +63,7 @@ impl Db {
     pub fn iterate_items(&self) -> impl Iterator<Item = DbItem> + '_ {
         let mut statement = self
             .connection
-            .prepare("SELECT (id, name) FROM files")
+            .prepare("SELECT id, name FROM files")
             .unwrap();
         let rows: Vec<_> = statement
             .query_map([], |row| {

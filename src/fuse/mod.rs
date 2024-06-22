@@ -1,9 +1,10 @@
-use crate::db::Db;
+use crate::db::{Db, DbItem};
 use core::panic;
 use std::{
     ffi::{c_char, c_int, c_void, CString},
     i8,
     mem::MaybeUninit,
+    path::PathBuf,
 };
 mod sys;
 
@@ -21,10 +22,32 @@ unsafe extern "C" fn fuse_client_getattr(path: *const c_char, statbuf: *mut sys:
     0
 }
 
+unsafe extern "C" fn fuse_client_readdir(
+    path: *const c_char,
+    buf: *mut c_void,
+    mut filler: sys::fuse_fill_dir_t,
+    _offset: sys::off_t,
+    _info: *mut sys::fuse_file_info,
+) -> c_int {
+    // get our database
+    let context = sys::fuse_get_context();
+    let client = (*context).private_data as *mut FuseClient;
+    let client = &mut *client;
+
+    for db_item in client.db.iterate_items() {
+        let mut filler = filler.as_mut().unwrap();
+        let name = CString::new(db_item.name.clone()).unwrap();
+        filler(buf, name.as_ptr(), std::ptr::null(), 0);
+    }
+
+    0
+}
+
 const fn generate_fuse_ops() -> sys::fuse_operations {
     unsafe {
         let mut ops: sys::fuse_operations = MaybeUninit::zeroed().assume_init();
         ops.getattr = Some(fuse_client_getattr);
+        ops.readdir = Some(fuse_client_readdir);
         ops
     }
 }
