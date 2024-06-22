@@ -1,7 +1,7 @@
 use crate::db::Db;
 use core::panic;
 use std::{
-    ffi::{c_void, CString},
+    ffi::{c_char, c_int, c_void, CString},
     i8,
     mem::MaybeUninit,
 };
@@ -9,13 +9,22 @@ mod sys;
 
 const HELLO_OPER: sys::fuse_operations = generate_fuse_ops();
 
+#[derive(Debug)]
 struct FuseClient {
     db: Db,
 }
 
+unsafe extern "C" fn fuse_client_getattr(path: *const c_char, statbuf: *mut sys::stat) -> c_int {
+    println!("Hello from fuse client getattr");
+    (*statbuf).st_mode = sys::S_IFDIR | 0o755;
+
+    0
+}
+
 const fn generate_fuse_ops() -> sys::fuse_operations {
     unsafe {
-        let ops = MaybeUninit::zeroed().assume_init();
+        let mut ops: sys::fuse_operations = MaybeUninit::zeroed().assume_init();
+        ops.getattr = Some(fuse_client_getattr);
         ops
     }
 }
