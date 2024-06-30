@@ -1,10 +1,19 @@
+#include <asm-generic/errno.h>
+// #include <cerrno>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #define FUSE_USE_VERSION 31
 #define _FILE_OFFSET_BITS 64
+// #include <errno-base.h>
 #include <fuse.h>
 #include <stdio.h>
 #include <string.h>
+
+static struct options {
+  const char *filename;
+  const char *contents;
+} options;
 
 void statbuf_for_path(const char *path, struct stat *statbuf) {
   if (strcmp(path, "/") == 0 || strcmp(path, "/test") == 0 ||
@@ -13,6 +22,22 @@ void statbuf_for_path(const char *path, struct stat *statbuf) {
   } else {
     statbuf->st_mode = S_IFREG | 0644;
   }
+}
+
+static int hello_open(const char *path, char *buf, size_t size, off_t offset,
+                      struct fuse_file_info *fi) {
+  size_t len;
+  (void)fi;
+
+  if (strcmp(path + 1, options.filename) != 0) {
+    return -ENOENT; // ENDENT from errno.h turns out to be -2
+  }
+
+  if ((fi->flags & O_ACCMODE) != O_RDONLY) {
+    return -EACCES;
+  }
+
+  return 0;
 }
 
 int hello_getattr(const char *path, struct stat *statbuf) {
@@ -41,6 +66,7 @@ int hello_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 static const struct fuse_operations hello_oper = {
     .getattr = hello_getattr,
     .readdir = hello_readdir,
+    .open = hello_open,
 };
 
 int main(int argc, char *argv[]) {
