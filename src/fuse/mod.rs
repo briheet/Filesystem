@@ -1,10 +1,9 @@
 use crate::db::{Db, DbItem};
 use core::panic;
 use std::{
-    ffi::{c_char, c_int, c_void, CString},
-    i8,
+    ffi::{c_char, c_int, c_void, CStr, CString},
     mem::MaybeUninit,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 mod sys;
 
@@ -13,6 +12,17 @@ const HELLO_OPER: sys::fuse_operations = generate_fuse_ops();
 #[derive(Debug)]
 struct FuseClient {
     db: Db,
+}
+
+unsafe fn cstr_to_rust_str(s: *const c_char) -> &'static str {
+    CStr::from_ptr(s).to_str().unwrap()
+}
+
+unsafe fn get_client() -> &'static mut FuseClient {
+    let context = sys::fuse_get_context();
+    let client = (*context).private_data as *mut FuseClient;
+    let client = &mut *client;
+    client
 }
 
 unsafe extern "C" fn fuse_client_getattr(path: *const c_char, statbuf: *mut sys::stat) -> c_int {
@@ -30,9 +40,7 @@ unsafe extern "C" fn fuse_client_readdir(
     _info: *mut sys::fuse_file_info,
 ) -> c_int {
     // get our database
-    let context = sys::fuse_get_context();
-    let client = (*context).private_data as *mut FuseClient;
-    let client = &mut *client;
+    let client = get_client();
 
     for db_item in client.db.iterate_items() {
         let mut filler = filler.as_mut().unwrap();
@@ -41,6 +49,20 @@ unsafe extern "C" fn fuse_client_readdir(
     }
 
     0
+}
+
+enum FuseClientPath {
+    DbPath(PathBuf),
+}
+
+impl FuseClient {
+    fn parse_path(&self, path: &Path) -> FuseClientPath {
+        // /by-id/1 -> /some/path/by-id/1
+        if let Ok(v) = path.strip_prefix("/by-id/") {
+            return FuseClientPath::DbPath(self.db.fs_root().join(v));
+        }
+        unimplemented!()
+    }
 }
 
 const fn generate_fuse_ops() -> sys::fuse_operations {

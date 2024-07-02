@@ -60,6 +60,10 @@ impl Db {
         Ok(())
     }
 
+    pub fn fs_root(&self) -> &Path {
+        &self.path
+    }
+
     pub fn iterate_items(&self) -> impl Iterator<Item = DbItem> + '_ {
         let mut statement = self
             .connection
