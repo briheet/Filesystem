@@ -1,9 +1,12 @@
 # FUSE
 
-info from [Here](https://github.com/libfuse/libfuse)
+Info from [Here](https://github.com/libfuse/libfuse)
 
 Making a fuse filesystem
 Majorily testing it out right now
+
+The main idea is to view relationship in a database. I can create Sym links but
+going back is not the option and it would be a headache. Hence we are here.
 
 The idea is to have files in like a database and view it out.
 The files also have custom links for you to navigate.

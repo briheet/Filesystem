@@ -14,15 +14,14 @@ struct FuseClient {
     db: Db,
 }
 
-unsafe fn cstr_to_rust_str(s: *const c_char) -> &'static str {
-    CStr::from_ptr(s).to_str().unwrap()
+unsafe fn cstr_to_rust_path(s: *const c_char) -> &'static Path {
+    Path::new(CStr::from_ptr(s).to_str().unwrap())
 }
 
 unsafe fn get_client() -> &'static mut FuseClient {
     let context = sys::fuse_get_context();
     let client = (*context).private_data as *mut FuseClient;
-    let client = &mut *client;
-    client
+    &mut *client
 }
 
 unsafe extern "C" fn fuse_client_getattr(path: *const c_char, statbuf: *mut sys::stat) -> c_int {
@@ -41,27 +40,40 @@ unsafe extern "C" fn fuse_client_readdir(
 ) -> c_int {
     // get our database
     let client = get_client();
-
-    for db_item in client.db.iterate_items() {
-        let mut filler = filler.as_mut().unwrap();
-        let name = CString::new(db_item.name.clone()).unwrap();
-        filler(buf, name.as_ptr(), std::ptr::null(), 0);
+    let parsed_path = client.parse_path(&cstr_to_rust_path(path));
+    let mut filler = filler.as_mut().unwrap();
+    match parsed_path {
+        FuseClientPath::Root => {
+            let by_id_folder = CString::new("by_id").unwrap();
+            filler(buf, by_id_folder.as_ptr(), std::ptr::null(), 0);
+        }
+        p => {
+            println!("unimplemented path: {:?}", path);
+        }
     }
+    for db_item in client.db.iterate_items() {}
 
     0
 }
 
 enum FuseClientPath {
+    Root,
+    ById,
     DbPath(PathBuf),
+    Unknowm,
 }
 
 impl FuseClient {
     fn parse_path(&self, path: &Path) -> FuseClientPath {
         // /by-id/1 -> /some/path/by-id/1
-        if let Ok(v) = path.strip_prefix("/by-id/") {
+        if path == Path::new("/") {
+            FuseClientPath::Root
+        } else if let Ok(v) = path.strip_prefix("/by-id/") {
             return FuseClientPath::DbPath(self.db.fs_root().join(v));
+        } else {
+            println!("unhandle path: {:?}", path);
+            FuseClientPath::Unknowm
         }
-        unimplemented!()
     }
 }
 
