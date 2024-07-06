@@ -1,10 +1,10 @@
 use crate::db::{Db, DbItem};
 use core::panic;
 use std::{
-    ffi::{c_char, c_int, c_void, CString},
+    ffi::{c_char, c_int, c_void, CStr, CString},
     i8,
     mem::MaybeUninit,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 mod sys;
 
@@ -15,10 +15,40 @@ struct FuseClient {
     db: Db,
 }
 
-unsafe extern "C" fn fuse_client_getattr(path: *const c_char, statbuf: *mut sys::stat) -> c_int {
-    println!("Hello from fuse client getattr");
-    (*statbuf).st_mode = sys::S_IFDIR | 0o755;
+#[derive(Debug)]
+enum FuseClientPath {
+    Root,
+    ById,
+    DbPath(PathBuf),
+    Unknown,
+}
 
+unsafe fn c_to_rust_path(s: *const c_char) -> &'static Path {
+    Path::new(CStr::from_ptr(s).to_str().unwrap())
+}
+
+unsafe fn get_client() -> &'static mut FuseClient {
+    let context = sys::fuse_get_context();
+    let client = (*context).private_data as *mut FuseClient;
+    &mut *client
+}
+
+impl FuseClient {
+    fn parse_path(&self, path: &Path) -> FuseClientPath {
+        if path == Path::new("/") {
+            FuseClientPath::Root
+        } else if let Ok(v) = path.strip_prefix("/by-id") {
+            return FuseClientPath::DbPath(self.db.fs_root().join(v));
+        } else {
+            println!("Unhandled path: {:?}", path);
+            return FuseClientPath::Unknown;
+        }
+    }
+}
+
+unsafe extern "C" fn fuse_client_getattr(path: *const c_char, statbuf: *mut sys::stat) -> c_int {
+    // println!("Hello from fuse client getattr");
+    (*statbuf).st_mode = sys::S_IFDIR | 0o755;
     0
 }
 
@@ -30,16 +60,20 @@ unsafe extern "C" fn fuse_client_readdir(
     _info: *mut sys::fuse_file_info,
 ) -> c_int {
     // get our database
-    let context = sys::fuse_get_context();
-    let client = (*context).private_data as *mut FuseClient;
-    let client = &mut *client;
 
-    for db_item in client.db.iterate_items() {
-        let mut filler = filler.as_mut().unwrap();
-        let name = CString::new(db_item.name.clone()).unwrap();
-        filler(buf, name.as_ptr(), std::ptr::null(), 0);
+    let client = get_client();
+    let parsed_path = client.parse_path(c_to_rust_path(path));
+
+    let filler = filler.as_mut().unwrap();
+    match parsed_path {
+        FuseClientPath::Root => {
+            let by_id_folder = CString::new("by-id").unwrap();
+            filler(buf, by_id_folder.as_ptr(), std::ptr::null(), 0);
+        }
+        p => {
+            println!("Unhandled path: {:?}", p)
+        }
     }
-
     0
 }
 
@@ -80,4 +114,3 @@ pub fn run_fuse_client(db: Db) {
         );
     }
 }
-
