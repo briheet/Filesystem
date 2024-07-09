@@ -1,8 +1,10 @@
+use rusqlite::named_params;
+
 use crate::db::{Db, DbItem};
 use core::panic;
 use std::{
     ffi::{c_char, c_int, c_void, CStr, CString},
-    i8,
+    fs, i8,
     mem::MaybeUninit,
     path::{Path, PathBuf},
 };
@@ -37,6 +39,8 @@ impl FuseClient {
     fn parse_path(&self, path: &Path) -> FuseClientPath {
         if path == Path::new("/") {
             FuseClientPath::Root
+        } else if path == Path::new("/by-id") {
+            FuseClientPath::ById
         } else if let Ok(v) = path.strip_prefix("/by-id") {
             return FuseClientPath::DbPath(self.db.fs_root().join(v));
         } else {
@@ -69,6 +73,19 @@ unsafe extern "C" fn fuse_client_readdir(
         FuseClientPath::Root => {
             let by_id_folder = CString::new("by-id").unwrap();
             filler(buf, by_id_folder.as_ptr(), std::ptr::null(), 0);
+        }
+        FuseClientPath::ById => {
+            for item in client.db.iterate_items() {
+                let name = CString::new(item.id.to_string()).unwrap();
+                filler(buf, name.as_ptr(), std::ptr::null(), 0);
+            }
+        }
+        FuseClientPath::DbPath(p) => {
+            for item in fs::read_dir(p).unwrap() {
+                let item = item.unwrap();
+                let name = CString::new(item.file_name().into_encoded_bytes()).unwrap();
+                filler(buf, name.as_ptr(), std::ptr::null(), 0);
+            }
         }
         p => {
             println!("Unhandled path: {:?}", p)

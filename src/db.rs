@@ -11,14 +11,15 @@ pub enum CreateItemError {
 
 #[derive(Debug)]
 pub struct Db {
-    path: PathBuf,
+    item_path: PathBuf,
     connection: Connection,
 }
 
 #[derive(Debug)]
 pub struct DbItem {
     // Our Db item is gonna have path to the item and his name
-    path: PathBuf,
+    pub path: PathBuf,
+    pub id: i64,
     pub name: String,
 }
 
@@ -37,7 +38,11 @@ impl Db {
             )
             .unwrap();
 
-        Db { path, connection }
+        let item_path = path.join("items");
+        Db {
+            item_path,
+            connection,
+        }
     }
 
     // let id = db.create_item("new item") guessing so far
@@ -49,7 +54,7 @@ impl Db {
             .unwrap();
         let id = transaction.last_insert_rowid();
 
-        let item_path = self.path.join(id.to_string());
+        let item_path = self.item_path.join(id.to_string());
         if item_path.exists() {
             return Err(CreateItemError::ItemExists);
         }
@@ -61,7 +66,7 @@ impl Db {
     }
 
     pub fn fs_root(&self) -> &Path {
-        &self.path
+        &self.item_path
     }
 
     pub fn iterate_items(&self) -> impl Iterator<Item = DbItem> + '_ {
@@ -73,7 +78,8 @@ impl Db {
             .query_map([], |row| {
                 let id: i64 = row.get(0)?;
                 Ok(DbItem {
-                    path: self.path.join(id.to_string()),
+                    path: self.item_path.join(id.to_string()),
+                    id,
                     name: row.get(1)?,
                 })
             })

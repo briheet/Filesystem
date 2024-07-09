@@ -3,12 +3,10 @@
 Info from [Here](https://github.com/libfuse/libfuse)
 
 Making a fuse filesystem
-Majorily testing it out right now
 
 The main idea is to view relationship in a database. I can create Sym links but
-going back is not the option and it would be a headache. Hence we are here.
+going back is not the option and multiple Symlinks would be a headache. Hence we are here.
 
-The idea is to have files in like a database and view it out.
 The files also have custom links for you to navigate.
 
 - How to run for now:
@@ -59,4 +57,4 @@ sqlitebrowser test_db/metadata.db
 - Generate bindings and write a fn for running the filesystem just like C would do with rust
 - Done writing the getattr and readdir for now
 
-![Right Now](./pics/2024-06-22-23:44:33-screenshot.png)
+![Right Now](./pics/2024-07-09-08:54:13-screenshot.png)
