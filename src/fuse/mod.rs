@@ -50,9 +50,21 @@ impl FuseClient {
     }
 }
 
+#[warn(unused_variables)]
 unsafe extern "C" fn fuse_client_getattr(path: *const c_char, statbuf: *mut sys::stat) -> c_int {
-    // println!("Hello from fuse client getattr");
-    (*statbuf).st_mode = sys::S_IFDIR | 0o755;
+    let client = get_client();
+    let parsed_path = client.parse_path(c_to_rust_path(path));
+
+    match parsed_path {
+        FuseClientPath::DbPath(p) => {
+            let p_cstring = CString::new(p.into_os_string().into_encoded_bytes()).unwrap();
+            return sys::lstat(p_cstring.as_ptr(), statbuf);
+        }
+        _ => {
+            (*statbuf).st_mode = sys::S_IFDIR | 0o755;
+        }
+    }
+
     0
 }
 
