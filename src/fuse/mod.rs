@@ -1,7 +1,9 @@
-use rusqlite::named_params;
-
+#[warn(unused_imports)]
 use crate::db::{Db, DbItem};
 use core::panic;
+
+#[warn(unused_imports)]
+use rusqlite::named_params;
 use std::{
     ffi::{c_char, c_int, c_void, CStr, CString},
     fs, i8,
