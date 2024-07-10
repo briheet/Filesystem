@@ -31,6 +31,10 @@ unsafe fn c_to_rust_path(s: *const c_char) -> &'static Path {
     Path::new(CStr::from_ptr(s).to_str().unwrap())
 }
 
+unsafe fn rust_to_c_path(p: &Path) -> CString {
+    CString::new(p.to_path_buf().into_os_string().into_encoded_bytes()).unwrap()
+}
+
 unsafe fn get_client() -> &'static mut FuseClient {
     let context = sys::fuse_get_context();
     let client = (*context).private_data as *mut FuseClient;
@@ -44,7 +48,7 @@ impl FuseClient {
         } else if path == Path::new("/by-id") {
             FuseClientPath::ById
         } else if let Ok(v) = path.strip_prefix("/by-id") {
-            return FuseClientPath::DbPath(self.db.fs_root().join(v));
+            return FuseClientPath::DbPath(self.db.fs_root().canonicalize().unwrap().join(v));
         } else {
             println!("Unhandled path: {:?}", path);
             return FuseClientPath::Unknown;
@@ -59,8 +63,15 @@ unsafe extern "C" fn fuse_client_getattr(path: *const c_char, statbuf: *mut sys:
 
     match parsed_path {
         FuseClientPath::DbPath(p) => {
+            println!("Handling path {:?}", p);
             let p_cstring = CString::new(p.into_os_string().into_encoded_bytes()).unwrap();
-            return sys::lstat(p_cstring.as_ptr(), statbuf);
+            println!("p_cstring: {:?}", p_cstring);
+            let ret = sys::lstat(p_cstring.as_ptr(), statbuf);
+            println!("ret: {:?}", ret);
+            if ret == -1 {
+                return -std::io::Error::last_os_error().raw_os_error().unwrap();
+            }
+            return ret;
         }
         _ => {
             (*statbuf).st_mode = sys::S_IFDIR | 0o755;
@@ -108,11 +119,33 @@ unsafe extern "C" fn fuse_client_readdir(
     0
 }
 
+unsafe extern "C" fn fuse_client_open(
+    path: *const c_char,
+    info: *mut sys::fuse_file_info,
+) -> c_int {
+    let client = get_client();
+    let mapped_path = client.parse_path(c_to_rust_path(path));
+
+    if let FuseClientPath::DbPath(p) = mapped_path {
+        println!("Handling open call for {:?}", p);
+        let ret = sys::open(rust_to_c_path(&p).as_ptr(), (*info).flags);
+        if ret == -1 {
+            return -1;
+            // FIXME: Proper error propogation w/ errno
+        }
+        (*info).fh = ret.try_into().unwrap();
+        return 0;
+    }
+    println!("Hello from fuse clinet open {:?}", mapped_path);
+    0
+}
+
 const fn generate_fuse_ops() -> sys::fuse_operations {
     unsafe {
         let mut ops: sys::fuse_operations = MaybeUninit::zeroed().assume_init();
         ops.getattr = Some(fuse_client_getattr);
         ops.readdir = Some(fuse_client_readdir);
+        ops.open = Some(fuse_client_open);
         ops
     }
 }
