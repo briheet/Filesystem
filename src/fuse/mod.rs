@@ -14,6 +14,12 @@ mod sys;
 
 const HELLO_OPER: sys::fuse_operations = generate_fuse_ops();
 
+macro_rules! return_errno {
+    () => {
+        return -std::io::Error::last_os_error().raw_os_error().unwrap();
+    };
+}
+
 #[derive(Debug)]
 struct FuseClient {
     db: Db,
@@ -63,13 +69,10 @@ unsafe extern "C" fn fuse_client_getattr(path: *const c_char, statbuf: *mut sys:
 
     match parsed_path {
         FuseClientPath::DbPath(p) => {
-            println!("Handling path {:?}", p);
             let p_cstring = CString::new(p.into_os_string().into_encoded_bytes()).unwrap();
-            println!("p_cstring: {:?}", p_cstring);
             let ret = sys::lstat(p_cstring.as_ptr(), statbuf);
-            println!("ret: {:?}", ret);
             if ret == -1 {
-                return -std::io::Error::last_os_error().raw_os_error().unwrap();
+                return_errno!()
             }
             return ret;
         }
@@ -127,16 +130,80 @@ unsafe extern "C" fn fuse_client_open(
     let mapped_path = client.parse_path(c_to_rust_path(path));
 
     if let FuseClientPath::DbPath(p) = mapped_path {
-        println!("Handling open call for {:?}", p);
         let ret = sys::open(rust_to_c_path(&p).as_ptr(), (*info).flags);
         if ret == -1 {
-            return -1;
-            // FIXME: Proper error propogation w/ errno
+            return_errno!()
         }
         (*info).fh = ret.try_into().unwrap();
         return 0;
     }
     println!("Hello from fuse clinet open {:?}", mapped_path);
+    0
+}
+
+unsafe extern "C" fn fuse_client_create(
+    path: *const c_char,
+    mode: sys::mode_t,
+    info: *mut sys::fuse_file_info,
+) -> c_int {
+    let client = get_client();
+    let mapped_path = client.parse_path(c_to_rust_path(path));
+
+    println!("mapped_path in create: {:?}", mapped_path);
+    if let FuseClientPath::DbPath(p) = mapped_path {
+        let ret = sys::open(rust_to_c_path(&p).as_ptr(), (*info).flags, mode);
+        if ret == -1 {
+            return_errno!()
+        }
+    }
+
+    -1
+}
+
+unsafe extern "C" fn fuse_client_chmod(arg1: *const c_char, arg2: sys::mode_t) -> c_int {
+    println!("unimplemented chmod");
+    0
+}
+
+unsafe extern "C" fn fuse_client_chown(
+    path: *const c_char,
+    arg2: sys::uid_t,
+    arg3: sys::gid_t,
+) -> c_int {
+    println!("unimplemented chown");
+    0
+}
+
+unsafe extern "C" fn fuse_client_truncate(arg1: *const c_char, arg2: sys::off_t) -> c_int {
+    println!("unimplemented truncate");
+    0
+}
+
+unsafe extern "C" fn fuse_client_utimens(arg1: *const c_char, tv: *const sys::timespec) -> c_int {
+    println!("unimplemented utimens");
+    0
+}
+
+unsafe extern "C" fn fuse_client_write(
+    path: *const c_char,
+    buf: *const c_char,
+    size: usize,
+    offest: sys::off_t,
+    info: *mut sys::fuse_file_info,
+) -> c_int {
+    // println!("unimplemented write");
+
+    if (*info).fh == 0 {
+        (*info).fh = sys::open(path, sys::O_WRONLY as i32).try_into().unwrap();
+    }
+
+    // FIXME: error handle on invalid file handle
+
+    libc::write((*info).fh.try_into().unwrap(), buf as *mut c_void, size);
+
+    // FIXME: handle offest
+
+    // FIXME: handle write error
     0
 }
 
@@ -146,6 +213,12 @@ const fn generate_fuse_ops() -> sys::fuse_operations {
         ops.getattr = Some(fuse_client_getattr);
         ops.readdir = Some(fuse_client_readdir);
         ops.open = Some(fuse_client_open);
+        ops.create = Some(fuse_client_create);
+        ops.chmod = Some(fuse_client_chmod);
+        ops.chown = Some(fuse_client_chown);
+        ops.truncate = Some(fuse_client_truncate);
+        ops.utimens = Some(fuse_client_utimens);
+        ops.write = Some(fuse_client_write);
         ops
     }
 }

@@ -4,6 +4,8 @@ Info from [Here](https://github.com/libfuse/libfuse)
 
 Making a fuse filesystem
 
+Current Scenario: You can do operations like touch and echo in a file easily.
+
 The main idea is to view relationship in a database. I can create Sym links but
 going back is not the option and multiple Symlinks would be a headache. Hence we are here.
 
@@ -56,5 +58,6 @@ sqlitebrowser test_db/metadata.db
 - Hardcoded our files
 - Generate bindings and write a fn for running the filesystem just like C would do with rust
 - Done writing the getattr and readdir for now
+- Impl other remaining write, utimens, truncate, open, create, etc
 
-![Right Now](./pics/2024-07-09-08:54:13-screenshot.png)
+![Right Now](./pics/2024-07-10-11:47:16-screenshot.png)
