@@ -207,6 +207,13 @@ unsafe extern "C" fn fuse_client_write(
     0
 }
 
+unsafe extern "C" fn fuse_client_flush(
+    path: *const c_char,
+    info: *mut sys::fuse_file_info,
+) -> c_int {
+    0
+}
+
 const fn generate_fuse_ops() -> sys::fuse_operations {
     unsafe {
         let mut ops: sys::fuse_operations = MaybeUninit::zeroed().assume_init();
@@ -219,6 +226,7 @@ const fn generate_fuse_ops() -> sys::fuse_operations {
         ops.truncate = Some(fuse_client_truncate);
         ops.utimens = Some(fuse_client_utimens);
         ops.write = Some(fuse_client_write);
+        ops.flush = Some(fuse_client_flush);
         ops
     }
 }
