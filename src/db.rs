@@ -10,6 +10,9 @@ pub enum CreateItemError {
 }
 
 #[derive(Debug)]
+pub struct RelationshipId(i64);
+
+#[derive(Debug)]
 pub struct Db {
     item_path: PathBuf,
     connection: Connection,
@@ -17,7 +20,7 @@ pub struct Db {
 
 #[derive(Debug)]
 pub struct DbItem {
-    // Our Db item is gonna have path to the item and his name
+    // Our Db item is gonna have path to the item and his name and id too
     pub path: PathBuf,
     pub id: i64,
     pub name: String,
@@ -31,9 +34,34 @@ impl Db {
         let sqlite_path = path.join("metadata.db");
         let connection = Connection::open(sqlite_path).unwrap();
 
+        // parent - child
+        // blocks - blocked by relationship
+        // other relationships depending on the requirements
+        // relationships(id, from, to)
+        // 1 , parents, children
+        // 2, blocked, blocked by
+        //
+        // items relationships (from_id, to_id, relationship)
         connection
             .execute(
                 "CREATE TABLE IF NOT EXISTS files(id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+                (),
+            )
+            .unwrap();
+
+        connection
+            .execute(
+                "CREATE TABLE IF NOT EXISTS relationships(id INTEGER PRIMARY KEY, from_name TEXT NOT NULL, to_name TEXT NOT NULL)",
+                (),
+            )
+            .unwrap();
+
+        connection
+            .execute(
+                "CREATE TABLE IF NOT EXISTS item_relationships(from_id INTEGER, to_id INTEGER, relationship_id INTEGER,
+                FOREIGN KEY(from_id) REFERENCES files(id),
+                FOREIGN KEY(to_id) REFERENCES files(id),
+                FOREIGN KEY(relationship_id) REFERENCES relationships(id))",
                 (),
             )
             .unwrap();
@@ -63,6 +91,37 @@ impl Db {
 
         transaction.commit().unwrap();
         Ok(())
+    }
+
+    pub fn add_relationship(&mut self, from_name: &str, to_name: &str) -> RelationshipId {
+        let transaction = self.connection.transaction().unwrap();
+        transaction
+            .execute(
+                "INSERT INTO relationsships(from_id, to_id) VALUES (?1, ?2)",
+                [from_name, to_name],
+            )
+            .unwrap();
+        let id = transaction.last_insert_rowid();
+        transaction.commit().unwrap();
+        RelationshipId(id)
+    }
+
+    pub fn find_relationship(&mut self, from_name: &str) -> Option<RelationshipId> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT id FROM relationships WHERE from_name = ?1")
+            .unwrap();
+
+        let item = statement
+            .query_map([from_name], |row| {
+                let ret: i64 = row.get(0)?;
+                Ok(RelationshipId(ret))
+            })
+            .unwrap()
+            .next();
+        // TODO: what is there are duplicates
+
+        item.map(|item| item.unwrap())
     }
 
     pub fn fs_root(&self) -> &Path {
