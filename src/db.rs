@@ -10,6 +10,18 @@ pub enum CreateItemError {
 }
 
 #[derive(Debug)]
+pub enum RelationshipSide {
+    Source,
+    Dest,
+}
+
+#[derive(Debug)]
+pub struct Relationship {
+    pub id: RelationshipId,
+    pub side: RelationshipSide,
+}
+
+#[derive(Debug)]
 pub struct RelationshipId(i64);
 
 #[derive(Debug)]
@@ -26,6 +38,7 @@ pub struct DbItem {
     // Our Db item is gonna have path to the item and his name and id too
     pub path: PathBuf,
     pub id: ItemId,
+    pub relationships: Vec<Relationship>,
     pub name: String,
 }
 
