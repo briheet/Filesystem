@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+env_logger = "0.11.3"
 libc = "0.2.155"
+log = "0.4.22"
 rusqlite = "0.31.0"
 
 [build-dependencies]

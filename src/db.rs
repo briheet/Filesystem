@@ -13,6 +13,9 @@ pub enum CreateItemError {
 pub struct RelationshipId(i64);
 
 #[derive(Debug)]
+pub struct ItemId(pub i64);
+
+#[derive(Debug)]
 pub struct Db {
     item_path: PathBuf,
     connection: Connection,
@@ -22,7 +25,7 @@ pub struct Db {
 pub struct DbItem {
     // Our Db item is gonna have path to the item and his name and id too
     pub path: PathBuf,
-    pub id: i64,
+    pub id: ItemId,
     pub name: String,
 }
 
@@ -94,10 +97,18 @@ impl Db {
     }
 
     pub fn add_relationship(&mut self, from_name: &str, to_name: &str) -> RelationshipId {
+        if let Some(id) = self.find_relationship(from_name) {
+            log::warn!(
+                "relationship with from_name \"{:?}\" already exists",
+                from_name
+            );
+            return id;
+        }
+
         let transaction = self.connection.transaction().unwrap();
         transaction
             .execute(
-                "INSERT INTO relationsships(from_id, to_id) VALUES (?1, ?2)",
+                "INSERT INTO relationships(from_name, to_name) VALUES (?1, ?2)",
                 [from_name, to_name],
             )
             .unwrap();
@@ -124,6 +135,23 @@ impl Db {
         item.map(|item| item.unwrap())
     }
 
+    pub fn add_item_relationship(
+        &mut self,
+        from_id: ItemId,
+        to_id: ItemId,
+        relationship_id: RelationshipId,
+    ) {
+        let transaction = self.connection.transaction().unwrap();
+        transaction
+            .execute(
+                "INSERT INTO item_relationships(from_id, to_id, relationship_id) VALUES (?1, ?2, ?3)",
+                [from_id.0, to_id.0, relationship_id.0],
+            )
+            .unwrap();
+
+        transaction.commit();
+    }
+
     pub fn fs_root(&self) -> &Path {
         &self.item_path
     }
@@ -136,8 +164,9 @@ impl Db {
         let rows: Vec<_> = statement
             .query_map([], |row| {
                 let id: i64 = row.get(0)?;
+                let id = ItemId(id);
                 Ok(DbItem {
-                    path: self.item_path.join(id.to_string()),
+                    path: self.item_path.join(id.0.to_string()),
                     id,
                     name: row.get(1)?,
                 })

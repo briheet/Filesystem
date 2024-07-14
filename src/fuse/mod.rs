@@ -104,7 +104,7 @@ unsafe extern "C" fn fuse_client_readdir(
         }
         FuseClientPath::ById => {
             for item in client.db.iterate_items() {
-                let name = CString::new(item.id.to_string()).unwrap();
+                let name = CString::new(item.id.0.to_string()).unwrap();
                 filler(buf, name.as_ptr(), std::ptr::null(), 0);
             }
         }
