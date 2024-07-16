@@ -18,13 +18,14 @@ pub enum RelationshipSide {
 #[derive(Debug)]
 pub struct Relationship {
     pub id: RelationshipId,
+    pub sibling: ItemId,
     pub side: RelationshipSide,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct RelationshipId(i64);
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct ItemId(pub i64);
 
 #[derive(Debug)]
@@ -174,12 +175,16 @@ impl Db {
             .connection
             .prepare("SELECT id, name FROM files")
             .unwrap();
-        let rows: Vec<_> = statement
+
+        struct Item {
+            id: ItemId,
+            name: String,
+        }
+        let items: Vec<_> = statement
             .query_map([], |row| {
                 let id: i64 = row.get(0)?;
                 let id = ItemId(id);
-                Ok(DbItem {
-                    path: self.item_path.join(id.0.to_string()),
+                Ok(Item {
                     id,
                     name: row.get(1)?,
                 })
@@ -187,6 +192,59 @@ impl Db {
             .unwrap()
             .map(|x| x.unwrap())
             .collect();
-        rows.into_iter()
+
+        let mut statement = self
+            .connection
+            .prepare("SELECT from_id, to_id, relationship_id FROM item_relationships")
+            .unwrap();
+
+        struct DbRelationship {
+            from_id: ItemId,
+            to_id: ItemId,
+            relationship_id: RelationshipId,
+        }
+        let item_relationships: Vec<DbRelationship> = statement
+            .query_map([], |row| {
+                let from_id: i64 = row.get(0)?;
+                let to_id: i64 = row.get(1)?;
+                let relationship_id: i64 = row.get(2)?;
+
+                Ok(DbRelationship {
+                    from_id: ItemId(from_id),
+                    to_id: ItemId(to_id),
+                    relationship_id: RelationshipId(relationship_id),
+                })
+            })
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect();
+
+        let mut ret = Vec::new();
+        for item in items {
+            let mut relationships = Vec::new();
+            for relationship in &item_relationships {
+                if relationship.from_id == item.id {
+                    relationships.push(Relationship {
+                        id: relationship.relationship_id,
+                        sibling: relationship.to_id,
+                        side: RelationshipSide::Source,
+                    });
+                }
+                if relationship.to_id == item.id {
+                    relationships.push(Relationship {
+                        id: relationship.relationship_id,
+                        sibling: relationship.from_id,
+                        side: RelationshipSide::Dest,
+                    });
+                }
+            }
+            ret.push(DbItem {
+                path: self.item_path.join(item.id.0.to_string()),
+                id: item.id,
+                relationships,
+                name: item.name,
+            })
+        }
+        ret.into_iter()
     }
 }

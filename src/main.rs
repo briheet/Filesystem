@@ -13,5 +13,9 @@ fn main() {
     let parent_relationship = db.add_relationship("parents", "children");
     db.add_item_relationship(db::ItemId(1), db::ItemId(2), parent_relationship);
 
+    for item in db.iterate_items() {
+        println!("{:?}", item);
+    }
+
     fuse::run_fuse_client(db);
 }

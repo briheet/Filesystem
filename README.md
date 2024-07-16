@@ -60,4 +60,4 @@ sqlitebrowser test_db/metadata.db
 - Done writing the getattr and readdir for now
 - Impl other remaining write, utimens, truncate, open, create, etc
 
-![Right Now](./pics/2024-07-10-11:47:16-screenshot.png)
+![Right Now](./assets/2024-07-16-23:33:09-screenshot.png)
